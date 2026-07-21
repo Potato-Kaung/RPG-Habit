@@ -1,16 +1,17 @@
 import {
-  User,
   Heart,
-  Coins,
-  Flame,
-  ScrollText,
+  Shield,
   Sword,
-  Brain,
-  Zap,
-  Target,
+  Gem,
+  Footprints,
   Trophy,
-  Pencil,
+  Flame,
+  BookOpen,
+  Sparkles,
+  User,
 } from "lucide-react";
+
+import Image from "next/image";
 
 export default function ProfilePage() {
   const player = {
@@ -18,14 +19,7 @@ export default function ProfilePage() {
     title: "Beginner Adventurer",
     level: 1,
     hp: 85,
-    xp: 40,
-    gold: 250,
-    streak: 5,
-    quests: 12,
-    strength: 8,
-    intelligence: 12,
-    agility: 6,
-    discipline: 10,
+    mana: 70,
   };
 
   return (
@@ -33,110 +27,130 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-5xl">
 
         {/* Header */}
+
         <div className="mb-8 rounded-xl bg-slate-900 p-6 text-white shadow-lg">
-          <h1 className="text-4xl font-bold">👤 Character Profile</h1>
+          <h1 className="text-4xl font-bold">
+            Character Profile
+          </h1>
+
           <p className="mt-2 text-gray-300">
-            View your hero's current status.
+            Your RPG Character
           </p>
         </div>
 
-        {/* Profile Card */}
         <div className="rounded-xl bg-white p-8 shadow-lg">
+
+          {/* Character */}
 
           <div className="flex flex-col items-center">
 
-            <div className="flex h-32 w-32 items-center justify-center rounded-full bg-slate-800 text-white shadow-lg">
-              <User size={60} />
+            <div className="flex h-40 w-40 items-center justify-center rounded-xl border-4 border-slate-700 bg-slate-200">
+
+              <Image
+  src="/images/char_img.png"
+  alt="Hero"
+  width={180}
+  height={180}
+  className="pixelated"
+/>
+
+              
+
             </div>
 
-            <h2 className="mt-4 text-3xl font-bold">
+            <h2 className="mt-5 text-3xl font-bold">
               {player.name}
             </h2>
 
-            <p className="text-lg text-gray-500">
+            <p className="text-gray-500">
               {player.title}
             </p>
 
-            <div className="mt-3 rounded-full bg-blue-100 px-5 py-2 text-blue-700 font-semibold">
+            <div className="mt-3 rounded-full bg-blue-600 px-5 py-2 font-bold text-white">
               Level {player.level}
             </div>
 
           </div>
 
-          {/* Basic Stats */}
+          {/* HP */}
 
-          <div className="mt-10 grid gap-6 md:grid-cols-4">
+          <div className="mt-10">
 
-            <div className="rounded-xl border p-5 text-center shadow hover:shadow-lg transition">
-              <Heart className="mx-auto mb-2 text-red-500" />
-              <p className="text-gray-500">HP</p>
-              <h3 className="text-2xl font-bold">{player.hp}/100</h3>
+            <div className="mb-2 flex justify-between">
+              <div className="flex items-center gap-2">
+                <Heart className="text-red-500" />
+                HP
+              </div>
+
+              <span>{player.hp}/100</span>
+
             </div>
 
-            <div className="rounded-xl border p-5 text-center shadow hover:shadow-lg transition">
-              <Coins className="mx-auto mb-2 text-yellow-500" />
-              <p className="text-gray-500">Gold</p>
-              <h3 className="text-2xl font-bold">{player.gold}</h3>
-            </div>
+            <div className="h-5 rounded-full bg-gray-300">
 
-            <div className="rounded-xl border p-5 text-center shadow hover:shadow-lg transition">
-              <Flame className="mx-auto mb-2 text-orange-500" />
-              <p className="text-gray-500">Streak</p>
-              <h3 className="text-2xl font-bold">
-                {player.streak} Days
-              </h3>
-            </div>
+              <div
+                className="h-5 rounded-full bg-red-500 transition-all"
+                style={{ width: `${player.hp}%` }}
+              />
 
-            <div className="rounded-xl border p-5 text-center shadow hover:shadow-lg transition">
-              <ScrollText className="mx-auto mb-2 text-blue-500" />
-              <p className="text-gray-500">Completed Quests</p>
-              <h3 className="text-2xl font-bold">
-                {player.quests}
-              </h3>
             </div>
 
           </div>
 
-          {/* Character Stats */}
+          {/* Mana */}
 
-          <div className="mt-10 rounded-xl border p-6">
+          <div className="mt-6">
 
-            <h2 className="mb-6 text-2xl font-bold">
-              Character Stats
+            <div className="mb-2 flex justify-between">
+
+              <div className="flex items-center gap-2">
+                <Sparkles className="text-blue-500" />
+                Mana
+              </div>
+
+              <span>{player.mana}/100</span>
+
+            </div>
+
+            <div className="h-5 rounded-full bg-gray-300">
+
+              <div
+                className="h-5 rounded-full bg-blue-500 transition-all"
+                style={{ width: `${player.mana}%` }}
+              />
+
+            </div>
+
+          </div>
+
+          {/* Equipment */}
+
+          <div className="mt-10">
+
+            <h2 className="mb-5 text-2xl font-bold">
+              Equipment
             </h2>
 
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
 
-              <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4">
-                <div className="flex items-center gap-3">
-                  <Sword className="text-red-500" />
-                  <span>Strength</span>
-                </div>
-                <span className="font-bold">{player.strength}</span>
+              <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4">
+                <Sword />
+                Wooden Sword
               </div>
 
-              <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4">
-                <div className="flex items-center gap-3">
-                  <Brain className="text-purple-500" />
-                  <span>Intelligence</span>
-                </div>
-                <span className="font-bold">{player.intelligence}</span>
+              <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4">
+                <Shield />
+                Leather Armor
               </div>
 
-              <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4">
-                <div className="flex items-center gap-3">
-                  <Zap className="text-yellow-500" />
-                  <span>Agility</span>
-                </div>
-                <span className="font-bold">{player.agility}</span>
+              <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4">
+                <Gem />
+                Lucky Ring
               </div>
 
-              <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4">
-                <div className="flex items-center gap-3">
-                  <Target className="text-green-500" />
-                  <span>Discipline</span>
-                </div>
-                <span className="font-bold">{player.discipline}</span>
+              <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4">
+                <Footprints />
+                Traveler Boots
               </div>
 
             </div>
@@ -145,9 +159,9 @@ export default function ProfilePage() {
 
           {/* Achievements */}
 
-          <div className="mt-10 rounded-xl border p-6">
+          <div className="mt-10">
 
-            <h2 className="mb-6 text-2xl font-bold">
+            <h2 className="mb-5 text-2xl font-bold">
               Achievements
             </h2>
 
@@ -155,40 +169,26 @@ export default function ProfilePage() {
 
               <div className="rounded-lg bg-yellow-100 p-5 text-center">
                 <Trophy className="mx-auto mb-2 text-yellow-600" />
-                <h3 className="font-bold">First Quest</h3>
-                <p className="text-sm text-gray-600">
-                  Completed your first quest.
-                </p>
+                <h3 className="font-bold">
+                  First Quest
+                </h3>
               </div>
 
               <div className="rounded-lg bg-orange-100 p-5 text-center">
                 <Flame className="mx-auto mb-2 text-orange-600" />
-                <h3 className="font-bold">7-Day Streak</h3>
-                <p className="text-sm text-gray-600">
-                  Stayed consistent for one week.
-                </p>
+                <h3 className="font-bold">
+                  7-Day Streak
+                </h3>
               </div>
 
               <div className="rounded-lg bg-blue-100 p-5 text-center">
-                <Brain className="mx-auto mb-2 text-blue-600" />
-                <h3 className="font-bold">Study Master</h3>
-                <p className="text-sm text-gray-600">
-                  Earned 500 XP from studying.
-                </p>
+                <BookOpen className="mx-auto mb-2 text-blue-600" />
+                <h3 className="font-bold">
+                  Study Master
+                </h3>
               </div>
 
             </div>
-
-          </div>
-
-          {/* Button */}
-
-          <div className="mt-10 flex justify-center">
-
-            <button className="flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-white transition hover:bg-slate-700">
-              <Pencil size={18} />
-              Edit Profile
-            </button>
 
           </div>
 
