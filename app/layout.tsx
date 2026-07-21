@@ -45,7 +45,7 @@ export default function RootLayout({
               <Link href="/quests" className="hover:text-yellow-400">
                 Quests
               </Link>
-
+              
               <Link href="/profile" className="hover:text-yellow-400">
                 Profile
               </Link>
