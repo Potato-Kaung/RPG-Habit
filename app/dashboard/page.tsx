@@ -22,28 +22,28 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-4">
         <div className="rounded-xl bg-white p-6 shadow">
           <p className="text-gray-500">
-            <Heart className="inline-block h-5 w-5 text-red-500" />
+            <Heart className="icon-spin inline-block h-5 w-5 cursor-pointer text-red-500" />
           </p>
           <h2 className="mt-2 text-3xl font-bold">{hp}/100</h2>
         </div>
 
         <div className="rounded-xl bg-white p-6 shadow">
           <p className="text-gray-500">
-            <Star className="inline-block h-5 w-5 text-yellow-500" />
+            <Star className="icon-spin inline-block h-5 w-5 cursor-pointer text-yellow-500" />
           </p>
           <h2 className="mt-2 text-3xl font-bold">{xp}/100</h2>
         </div>
 
         <div className="rounded-xl bg-white p-6 shadow">
           <p className="text-gray-500">
-            <Coins className="inline-block h-5 w-5 text-yellow-500" />
+            <Coins className="icon-spin inline-block h-5 w-5 cursor-pointer text-yellow-500" />
           </p>
           <h2 className="mt-2 text-3xl font-bold">{gold}</h2>
         </div>
 
         <div className="rounded-xl bg-white p-6 shadow">
           <p className="text-gray-500">
-            <Trophy className="inline-block h-5 w-5 text-blue-500" />
+            <Trophy className="icon-spin inline-block h-5 w-5 cursor-pointer text-blue-500" />
           </p>
           <h2 className="mt-2 text-3xl font-bold">{level}</h2>
         </div>
@@ -107,3 +107,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
