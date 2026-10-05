@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
+import { GameProvider } from "./context/GameContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -54,7 +55,7 @@ export default function RootLayout({
         </nav>
 
         <main className="mx-auto max-w-6xl p-6">
-          {children}
+          <GameProvider>{children}</GameProvider>
         </main>
       </body>
     </html>
