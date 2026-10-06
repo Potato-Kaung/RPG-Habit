@@ -1,7 +1,7 @@
 "use client";
 
 import { Heart, Star, Coins, Trophy } from "lucide-react";
-import { useGame } from "../context/GameContext";
+import { useGame } from "../context/GameContextupdate1";
 
 export default function DashboardPage() {
   const { player, quests, toggleQuest } = useGame();

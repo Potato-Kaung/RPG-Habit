@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useGame } from "../context/GameContext";
+import { useGame } from "../context/GameContextupdate1";
 
 export default function QuestsPage() {
   const { player, quests, toggleQuest, addQuest } = useGame();

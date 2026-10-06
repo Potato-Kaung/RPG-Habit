@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
-import { GameProvider } from "./context/GameContext";
+import { GameProvider } from "./context/GameContextupdate1";
 import "./globals.css";
 
 const geistSans = Geist({
