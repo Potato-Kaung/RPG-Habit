@@ -58,13 +58,17 @@ export default function ProfilePage() {
               <Heart className="text-red-500" />
               HP
             </div>
-            <span>{player.hp}/100</span>
+            <span>
+              {player.hp}/{player.maxHp}
+            </span>
           </div>
 
           <div className="h-5 rounded-full bg-gray-300">
             <div
               className="h-5 rounded-full bg-red-500 transition-all"
-              style={{ width: `${player.hp}%` }}
+              style={{
+                width: `${Math.min(100, Math.round((player.hp / player.maxHp) * 100))}%`,
+              }}
             />
           </div>
         </div>

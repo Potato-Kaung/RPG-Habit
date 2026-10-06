@@ -5,7 +5,8 @@ import { useGame } from "../context/GameContext";
 
 export default function DashboardPage() {
   const { player, quests, toggleQuest } = useGame();
-  const { playerName, level, hp, xp, gold } = player;
+  const { playerName, level, hp, maxHp, xp, gold } = player;
+  const hpPercent = Math.min(100, Math.round((hp / maxHp) * 100));
   const todaysQuest = quests.find((q) => !q.completed);
 
   return (
@@ -24,7 +25,9 @@ export default function DashboardPage() {
           <p className="text-gray-500">
             <Heart className="icon-spin inline-block h-5 w-5 cursor-pointer text-red-500" />
           </p>
-          <h2 className="mt-2 text-3xl font-bold">{hp}/100</h2>
+          <h2 className="mt-2 text-3xl font-bold">
+            {hp}/{maxHp}
+          </h2>
         </div>
 
         <div className="rounded-xl bg-white p-6 shadow">
@@ -56,12 +59,14 @@ export default function DashboardPage() {
         <div className="mb-6">
           <div className="mb-2 flex justify-between">
             <span>HP</span>
-            <span>{hp}%</span>
+            <span>
+              {hp}/{maxHp}
+            </span>
           </div>
           <div className="h-4 w-full rounded-full bg-gray-300">
             <div
-              className="h-4 rounded-full bg-green-500"
-              style={{ width: `${hp}%` }}
+              className="h-4 rounded-full bg-green-500 transition-all duration-500"
+              style={{ width: `${hpPercent}%` }}
             ></div>
           </div>
         </div>
@@ -107,4 +112,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
