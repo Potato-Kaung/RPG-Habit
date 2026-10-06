@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useGame } from "../context/GameContext";
 
 export default function QuestsPage() {
-  const { quests, toggleQuest, addQuest } = useGame();
+  const { player, quests, toggleQuest, addQuest } = useGame();
   const [title, setTitle] = useState("");
 
   function handleAdd(e: React.FormEvent) {
@@ -19,6 +19,20 @@ export default function QuestsPage() {
       <div className="mb-8 rounded-xl bg-slate-900 p-6 text-white shadow-lg">
         <h1 className="text-4xl font-bold">📜 Quests</h1>
         <p className="mt-2 text-gray-300">Add a task, click it when done.</p>
+      </div>
+
+      {/* Live Level / XP bar — updates the instant a quest is checked off */}
+      <div className="mb-6 rounded-xl bg-white p-6 shadow">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-lg font-bold">Level {player.level}</span>
+          <span className="text-gray-500">{player.xp}/100 XP</span>
+        </div>
+        <div className="h-4 w-full rounded-full bg-gray-300">
+          <div
+            className="h-4 rounded-full bg-blue-500 transition-all duration-500"
+            style={{ width: `${player.xp}%` }}
+          ></div>
+        </div>
       </div>
 
       <form onSubmit={handleAdd} className="mb-6 flex gap-3">
@@ -61,13 +75,21 @@ export default function QuestsPage() {
                 </span>
 
                 <span
-                  className={`text-lg ${
+                  className={`flex-1 text-lg ${
                     quest.completed
                       ? "text-gray-400 line-through"
                       : "text-gray-900"
                   }`}
                 >
                   {quest.title}
+                </span>
+
+                <span
+                  className={`text-sm font-semibold ${
+                    quest.completed ? "text-gray-300" : "text-blue-600"
+                  }`}
+                >
+                  +{quest.xpReward} XP
                 </span>
               </li>
             ))}

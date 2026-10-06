@@ -26,21 +26,30 @@ type GameContextType = {
 };
 
 const XP_PER_LEVEL = 100;
-const DEFAULT_XP_REWARD = 10;
+const MIN_XP_REWARD = 10;
+const MAX_XP_REWARD = 50;
 const DEFAULT_GOLD_REWARD = 5;
+
+// Random XP between 10 and 50 (inclusive) for every new quest
+function randomXpReward() {
+  return (
+    Math.floor(Math.random() * (MAX_XP_REWARD - MIN_XP_REWARD + 1)) +
+    MIN_XP_REWARD
+  );
+}
 
 const initialQuests: Quest[] = [
   {
     id: "1",
     title: "Study Next.js for 30 minutes",
-    xpReward: DEFAULT_XP_REWARD,
+    xpReward: 20,
     goldReward: DEFAULT_GOLD_REWARD,
     completed: false,
   },
   {
     id: "2",
     title: "Go for a 20-minute walk",
-    xpReward: DEFAULT_XP_REWARD,
+    xpReward: 15,
     goldReward: DEFAULT_GOLD_REWARD,
     completed: false,
   },
@@ -109,7 +118,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const newQuest: Quest = {
       id: crypto.randomUUID(),
       title,
-      xpReward: DEFAULT_XP_REWARD,
+      xpReward: randomXpReward(),
       goldReward: DEFAULT_GOLD_REWARD,
       completed: false,
     };
@@ -130,3 +139,4 @@ export function useGame() {
   }
   return ctx;
 }
+
