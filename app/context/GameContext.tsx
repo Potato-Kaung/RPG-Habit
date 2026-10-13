@@ -128,16 +128,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  function addQuest(title: string) {
+async function addQuest(title: string) {
+  try {
+    const response = await fetch("/api/tasks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ title }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Failed to save quest");
+    }
+
     const newQuest: Quest = {
-      id: crypto.randomUUID(),
-      title,
-      xpReward: randomXpReward(),
-      goldReward: DEFAULT_GOLD_REWARD,
+      id: String(data.task.id),
+      title: data.task.title,
+      xpReward: data.task.xpReward,
+      goldReward: data.task.goldReward,
       completed: false,
     };
+
     setQuests((prev) => [...prev, newQuest]);
+  } catch (error) {
+    console.error("Add quest error:", error);
+    alert("Could not save the quest to the database.");
   }
+}
+
 
   return (
     <GameContext.Provider value={{ player, quests, toggleQuest, addQuest }}>
