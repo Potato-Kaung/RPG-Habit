@@ -1,4 +1,5 @@
 
+import oracledb from "oracledb";
 import { NextResponse } from "next/server";
 import { getConnection } from "@/lib/oracle";
 
@@ -50,25 +51,34 @@ export async function POST(request: Request) {
     connection = await getConnection();
 
     const xpReward = Math.floor(Math.random() * 41) + 10;
-
     const result = await connection.execute(
-      `INSERT INTO TASKS
-         (TASK_NAME, XP_REWARD, HP_COST, GOLD_REWARD)
-       VALUES
-         (:title, :xpReward, 0, 5)
-       RETURNING TASK_ID INTO :taskId`,
-      {
-        title,
-        xpReward,
-        taskId: { dir: 3003, type: 2010 },
-      },
-      { autoCommit: true }
-    );
+  `INSERT INTO TASKS
+     (TASK_NAME, XP_REWARD, HP_COST, GOLD_REWARD)
+   VALUES
+     (:title, :xpReward, 0, 5)
+   RETURNING TASK_ID INTO :taskId`,
+  {
+    title,
+    xpReward,
+    taskId: {
+      dir: oracledb.BIND_OUT,
+      type: oracledb.NUMBER,
+    },
+  },
+  { autoCommit: true }
+);
+
+    const outBinds = result.outBinds as
+      | { taskId?: number[] | number | null }
+      | undefined;
+    const taskId = Array.isArray(outBinds?.taskId)
+      ? outBinds.taskId[0]
+      : outBinds?.taskId;
 
     return NextResponse.json({
       success: true,
       task: {
-        id: String(result.outBinds?.taskId),
+        id: String(taskId ?? ""),
         title,
         xpReward,
         goldReward: 5,
@@ -76,13 +86,13 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Create task API error:", error);
+  console.error("Create task API error:", error);
 
-    return NextResponse.json(
-      { success: false, error: "Failed to create task" },
-      { status: 500 }
-    );
-  } finally {
-    if (connection) await connection.close();
-  }
-}
+  return NextResponse.json(
+    {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    },
+    { status: 500 }
+  );
+}}
