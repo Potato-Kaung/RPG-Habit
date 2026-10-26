@@ -26,7 +26,7 @@ export default function ProfilePage() {
     <div>
       {/* Header */}
       <div className="mb-8 rounded-xl bg-slate-900 p-6 text-white shadow-lg">
-        <h1 className="text-4xl font-bold">Character</h1>
+        <h1 className="text-4xl font-bold">Character profile</h1>
         <p className="mt-2 text-gray-300">Your RPG Character</p>
       </div>
 
