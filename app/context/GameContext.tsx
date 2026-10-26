@@ -68,7 +68,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     gold: 0,
   });
 
-  const [quests, setQuests] = useState<Quest[]>(initialQuests);
+  const [quests, setQuests] = useState<Quest[]>([]);
 
   function applyLevelUp(xp: number, level: number) {
     let newXp = xp;
