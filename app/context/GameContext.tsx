@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 
 export type Quest = {
   id: string;
@@ -80,53 +87,100 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const levelsGained = newLevel - level;
     return { xp: newXp, level: newLevel, levelsGained };
   }
+  useEffect(() => {
+  async function loadPlayer() {
+    try {
+      const response = await fetch("/api/player");
+      const data = await response.json();
 
+      if (!response.ok || !data.success) {
+        throw new Error("Failed to load player");
+      }
+
+      setPlayer((prev) => ({
+        ...prev,
+        level: data.player.level,
+        hp: data.player.hp,
+        xp: data.player.xp,
+        gold: data.player.gold,
+      }));
+    } catch (error) {
+      console.error("Load player error:", error);
+    }
+  }
+
+  loadPlayer();
+}, []);
   // Click a quest to toggle it complete <-> incomplete, like a normal to-do list.
   // XP/gold are added when you check it off, and removed if you uncheck it.
-  function toggleQuest(id: string) {
-    const quest = quests.find((q) => q.id === id);
-    if (!quest) return;
+  
+async function toggleQuest(id: string) {
+  const quest = quests.find((q) => q.id === id);
+  if (!quest) return;
 
-    const willBeCompleted = !quest.completed;
+  const willBeCompleted = !quest.completed;
+
+  const HP_PER_LEVEL = 20;
+  const GOLD_PER_LEVEL = 20;
+
+  let updatedPlayer: PlayerStats = player;
+
+  if (willBeCompleted) {
+    const { xp, level, levelsGained } = applyLevelUp(
+      player.xp + quest.xpReward,
+      player.level
+    );
+
+    const newMaxHp = player.maxHp + levelsGained * HP_PER_LEVEL;
+
+    updatedPlayer = {
+      ...player,
+      xp,
+      level,
+      maxHp: newMaxHp,
+      hp: levelsGained > 0 ? newMaxHp : player.hp,
+      gold: player.gold + quest.goldReward + levelsGained * GOLD_PER_LEVEL,
+    };
+  } else {
+    updatedPlayer = {
+      ...player,
+      xp: Math.max(0, player.xp - quest.xpReward),
+      gold: Math.max(0, player.gold - quest.goldReward),
+    };
+  }
+
+  try {
+    const response = await fetch("/api/player", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        xp: updatedPlayer.xp,
+        hp: updatedPlayer.hp,
+        level: updatedPlayer.level,
+        gold: updatedPlayer.gold,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Failed to save player");
+    }
+
+    setPlayer(updatedPlayer);
 
     setQuests((prev) =>
       prev.map((q) =>
         q.id === id ? { ...q, completed: willBeCompleted } : q
       )
     );
-
-    const HP_PER_LEVEL = 20;
-    const GOLD_PER_LEVEL = 20;
-
-    setPlayer((prev) => {
-      if (willBeCompleted) {
-        const { xp, level, levelsGained } = applyLevelUp(
-          prev.xp + quest.xpReward,
-          prev.level
-        );
-        const newMaxHp = prev.maxHp + levelsGained * HP_PER_LEVEL;
-
-        return {
-          ...prev,
-          xp,
-          level,
-          maxHp: newMaxHp,
-          // leveling up heals you to the new max, same as most RPGs
-          hp: levelsGained > 0 ? newMaxHp : prev.hp,
-          gold: prev.gold + quest.goldReward + levelsGained * GOLD_PER_LEVEL,
-        };
-      } else {
-        // Unchecking a quest just undoes its own XP/gold reward.
-        // It intentionally does not undo a level-up, to avoid HP/gold
-        // swinging back and forth confusingly if you misclick.
-        return {
-          ...prev,
-          xp: Math.max(0, prev.xp - quest.xpReward),
-          gold: Math.max(0, prev.gold - quest.goldReward),
-        };
-      }
-    });
+  } catch (error) {
+    console.error("Save quest progress error:", error);
+    alert("Could not save your progress. Please try again.");
   }
+}
 
 async function addQuest(title: string) {
   try {
