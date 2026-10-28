@@ -1,230 +1,318 @@
-"use client";
 
+"use client";
 
 import {
   createContext,
+  useCallback,
   useContext,
-  useState,
   useEffect,
-  ReactNode,
+  useState,
+  type ReactNode,
 } from "react";
+import { supabase } from "@/lib/supabase";
 
-export type Quest = {
-  id: string;
+const XP_PER_LEVEL = 100;
+const HP_PER_LEVEL = 20;
+const GOLD_PER_LEVEL = 20;
+const DEFAULT_GOLD_REWARD = 5;
+
+export interface Quest {
+  id: number;
   title: string;
   xpReward: number;
   goldReward: number;
   completed: boolean;
-};
+}
 
-type PlayerStats = {
+export interface PlayerStats {
   playerName: string;
   level: number;
   hp: number;
   maxHp: number;
   xp: number;
   gold: number;
-};
-
-type GameContextType = {
-  player: PlayerStats;
-  quests: Quest[];
-  toggleQuest: (id: string) => void;
-  addQuest: (title: string) => void;
-};
-
-const XP_PER_LEVEL = 100;
-const MIN_XP_REWARD = 10;
-const MAX_XP_REWARD = 50;
-const DEFAULT_GOLD_REWARD = 5;
-
-// Random XP between 10 and 50 (inclusive) for every new quest
-function randomXpReward() {
-  return (
-    Math.floor(Math.random() * (MAX_XP_REWARD - MIN_XP_REWARD + 1)) +
-    MIN_XP_REWARD
-  );
 }
 
-const initialQuests: Quest[] = [
-  {
-    id: "1",
-    title: "Study Next.js for 30 minutes",
-    xpReward: 20,
-    goldReward: DEFAULT_GOLD_REWARD,
-    completed: false,
-  },
-  {
-    id: "2",
-    title: "Go for a 20-minute walk",
-    xpReward: 15,
-    goldReward: DEFAULT_GOLD_REWARD,
-    completed: false,
-  },
-];
+interface GameContextType {
+  quests: Quest[];
+  player: PlayerStats;
+  loading: boolean;
+  toggleQuest: (questId: number) => Promise<void>;
+  addQuest: (title: string) => Promise<void>;
+  loadPlayer: () => Promise<void>;
+}
+
+const defaultPlayer: PlayerStats = {
+  playerName: "Adventurer",
+  level: 1,
+  hp: 100,
+  maxHp: 100,
+  xp: 0,
+  gold: 0,
+};
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export function GameProvider({ children }: { children: ReactNode }) {
-  const [player, setPlayer] = useState<PlayerStats>({
-    playerName: "Kaung",
-    level: 1,
-    hp: 100,
-    maxHp: 100,
-    xp: 0,
-    gold: 0,
-  });
-
   const [quests, setQuests] = useState<Quest[]>([]);
+  const [player, setPlayer] = useState<PlayerStats>(defaultPlayer);
+  const [loading, setLoading] = useState(true);
 
-  function applyLevelUp(xp: number, level: number) {
-    let newXp = xp;
-    let newLevel = level;
-    while (newXp >= XP_PER_LEVEL) {
-      newXp -= XP_PER_LEVEL;
-      newLevel += 1;
-    }
-    const levelsGained = newLevel - level;
-    return { xp: newXp, level: newLevel, levelsGained };
-  }
-  useEffect(() => {
-  async function loadPlayer() {
+  const loadPlayer = useCallback(async () => {
+    setLoading(true);
+
     try {
-      const response = await fetch("/api/player");
-      const data = await response.json();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-      if (!response.ok || !data.success) {
-        throw new Error("Failed to load player");
+      if (authError) throw authError;
+
+      if (!user) {
+        setQuests([]);
+        setPlayer(defaultPlayer);
+        return;
       }
 
-      setPlayer((prev) => ({
-        ...prev,
-        level: data.player.level,
-        hp: data.player.hp,
-        xp: data.player.xp,
-        gold: data.player.gold,
-      }));
+      const [
+        { data: profile, error: profileError },
+        { data: stats, error: statsError },
+        { data: tasks, error: tasksError },
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", user.id)
+          .maybeSingle(),
+
+        supabase
+          .from("player_stats")
+          .select("xp, hp, player_level, gold")
+          .eq("user_id", user.id)
+          .single(),
+
+        supabase
+          .from("tasks")
+          .select("id, title, xp_reward, gold_reward, completed")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (profileError) throw profileError;
+      if (statsError) throw statsError;
+      if (tasksError) throw tasksError;
+
+      const level = Math.max(1, stats.player_level ?? 1);
+      const maxHp = 100 + (level - 1) * HP_PER_LEVEL;
+      const currentHp = Math.max(
+        0,
+        Math.min(stats.hp ?? 100, maxHp)
+      );
+
+      setPlayer({
+        playerName: profile?.username || user.email?.split("@")[0] || "Adventurer",
+        level,
+        hp: currentHp,
+        maxHp,
+        xp: stats.xp ?? 0,
+        gold: stats.gold ?? 0,
+      });
+
+      setQuests(
+        (tasks ?? []).map((task) => ({
+          id: task.id,
+          title: task.title,
+          xpReward: task.xp_reward,
+          goldReward: task.gold_reward,
+          completed: task.completed,
+        }))
+      );
     } catch (error) {
-      console.error("Load player error:", error);
+      console.error("Failed to load player data:", error);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
 
-  loadPlayer();
-}, []);
-  // Click a quest to toggle it complete <-> incomplete, like a normal to-do list.
-  // XP/gold are added when you check it off, and removed if you uncheck it.
-  
-async function toggleQuest(id: string) {
-  const quest = quests.find((q) => q.id === id);
-  if (!quest) return;
+  useEffect(() => {
+    void loadPlayer();
 
-  const willBeCompleted = !quest.completed;
-
-  const HP_PER_LEVEL = 20;
-  const GOLD_PER_LEVEL = 20;
-
-  let updatedPlayer: PlayerStats = player;
-
-  if (willBeCompleted) {
-    const { xp, level, levelsGained } = applyLevelUp(
-      player.xp + quest.xpReward,
-      player.level
-    );
-
-    const newMaxHp = player.maxHp + levelsGained * HP_PER_LEVEL;
-
-    updatedPlayer = {
-      ...player,
-      xp,
-      level,
-      maxHp: newMaxHp,
-      hp: levelsGained > 0 ? newMaxHp : player.hp,
-      gold: player.gold + quest.goldReward + levelsGained * GOLD_PER_LEVEL,
-    };
-  } else {
-    updatedPlayer = {
-      ...player,
-      xp: Math.max(0, player.xp - quest.xpReward),
-      gold: Math.max(0, player.gold - quest.goldReward),
-    };
-  }
-
-  try {
-    const response = await fetch("/api/player", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        xp: updatedPlayer.xp,
-        hp: updatedPlayer.hp,
-        level: updatedPlayer.level,
-        gold: updatedPlayer.gold,
-      }),
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      void loadPlayer();
     });
 
-    const data = await response.json();
+    return () => subscription.unsubscribe();
+  }, [loadPlayer]);
 
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || "Failed to save player");
+  const toggleQuest = async (questId: number) => {
+    const quest = quests.find((item) => item.id === questId);
+
+    if (!quest) return;
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.error("Authentication error:", authError);
+      return;
     }
 
-    setPlayer(updatedPlayer);
+    if (!user) return;
 
-    setQuests((prev) =>
-      prev.map((q) =>
-        q.id === id ? { ...q, completed: willBeCompleted } : q
+    const completing = !quest.completed;
+
+    let newXp = player.xp;
+    let newGold = player.gold;
+    let newLevel = player.level;
+    let levelsGained = 0;
+
+    if (completing) {
+      newXp += quest.xpReward;
+      newGold += quest.goldReward;
+
+      while (newXp >= XP_PER_LEVEL) {
+        newXp -= XP_PER_LEVEL;
+        newLevel += 1;
+        levelsGained += 1;
+      }
+    } else {
+      newXp = Math.max(0, newXp - quest.xpReward);
+      newGold = Math.max(0, newGold - quest.goldReward);
+    }
+
+    const newMaxHp = 100 + (newLevel - 1) * HP_PER_LEVEL;
+
+    // IMPORTANT: Refill HP only when the player gains a level.
+    const newHp =
+      levelsGained > 0
+        ? newMaxHp
+        : Math.min(player.hp, newMaxHp);
+
+    // Save the quest completion first.
+    const { error: questError } = await supabase
+      .from("tasks")
+      .update({ completed: completing })
+      .eq("id", questId)
+      .eq("user_id", user.id);
+
+    if (questError) {
+      console.error("Failed to update quest:", questError);
+      return;
+    }
+
+    // Save XP, HP, level, and gold to Supabase.
+    const { error: statsError } = await supabase
+      .from("player_stats")
+      .update({
+        xp: newXp,
+        hp: newHp,
+        player_level: newLevel,
+        gold: newGold,
+      })
+      .eq("user_id", user.id);
+
+    if (statsError) {
+      console.error("Failed to update player stats:", statsError);
+
+      // Reload to keep the screen consistent with the database.
+      await loadPlayer();
+      return;
+    }
+
+    // Update the screen only after the database saves successfully.
+    setQuests((previous) =>
+      previous.map((item) =>
+        item.id === questId
+          ? { ...item, completed: completing }
+          : item
       )
     );
-  } catch (error) {
-    console.error("Save quest progress error:", error);
-    alert("Could not save your progress. Please try again.");
-  }
-}
 
-async function addQuest(title: string) {
-  try {
-    const response = await fetch("/api/tasks", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ title }),
-    });
+    setPlayer((previous) => ({
+      ...previous,
+      xp: newXp,
+      gold: newGold,
+      level: newLevel,
+      hp: newHp,
+      maxHp: newMaxHp,
+    }));
+  };
 
-    const data = await response.json();
+  const addQuest = async (title: string) => {
+    const trimmedTitle = title.trim();
 
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || "Failed to save quest");
+    if (!trimmedTitle) return;
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.error("Authentication error:", authError);
+      return;
     }
 
-    const newQuest: Quest = {
-      id: String(data.task.id),
-      title: data.task.title,
-      xpReward: data.task.xpReward,
-      goldReward: data.task.goldReward,
-      completed: false,
-    };
+    if (!user) return;
 
-    setQuests((prev) => [...prev, newQuest]);
-  } catch (error) {
-    console.error("Add quest error:", error);
-    alert("Could not save the quest to the database.");
-  }
-}
+    const xpReward = Math.floor(Math.random() * 41) + 10;
 
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        user_id: user.id,
+        title: trimmedTitle,
+        xp_reward: xpReward,
+        gold_reward: DEFAULT_GOLD_REWARD,
+        completed: false,
+      })
+      .select("id, title, xp_reward, gold_reward, completed")
+      .single();
+
+    if (error) {
+      console.error("Failed to add quest:", error);
+      return;
+    }
+
+    setQuests((previous) => [
+      ...previous,
+      {
+        id: data.id,
+        title: data.title,
+        xpReward: data.xp_reward,
+        goldReward: data.gold_reward,
+        completed: data.completed,
+      },
+    ]);
+  };
 
   return (
-    <GameContext.Provider value={{ player, quests, toggleQuest, addQuest }}>
+    <GameContext.Provider
+      value={{
+        quests,
+        player,
+        loading,
+        toggleQuest,
+        addQuest,
+        loadPlayer,
+      }}
+    >
       {children}
     </GameContext.Provider>
   );
 }
 
 export function useGame() {
-  const ctx = useContext(GameContext);
-  if (!ctx) {
-    throw new Error("useGame must be used within a GameProvider");
+  const context = useContext(GameContext);
+
+  if (!context) {
+    throw new Error("useGame must be used inside GameProvider");
   }
-  return ctx;
+
+  return context;
 }
