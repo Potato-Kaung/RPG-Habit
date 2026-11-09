@@ -19,7 +19,7 @@ export default function HomePage() {
         </Link>
 
         <Link
-          href="/signup"
+          href="/singupp"
           className="rounded-lg border px-6 py-3 font-semibold hover:bg-gray-100"
         >
           Create Account
