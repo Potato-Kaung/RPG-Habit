@@ -58,23 +58,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [player, setPlayer] = useState<PlayerStats>(defaultPlayer);
   const [loading, setLoading] = useState(true);
 
+  // Load the logged-in player's data.
   const loadPlayer = useCallback(async () => {
     setLoading(true);
 
     try {
       const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (authError) throw authError;
+      if (sessionError) throw sessionError;
 
+      const user = session?.user;
+
+      // No logged-in user.
       if (!user) {
-        setQuests([]);
         setPlayer(defaultPlayer);
+        setQuests([]);
         return;
       }
 
+      // Load profile, stats, and tasks.
       const [
         { data: profile, error: profileError },
         { data: stats, error: statsError },
@@ -105,13 +110,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       const level = Math.max(1, stats.player_level ?? 1);
       const maxHp = 100 + (level - 1) * HP_PER_LEVEL;
+
       const currentHp = Math.max(
         0,
         Math.min(stats.hp ?? 100, maxHp)
       );
 
       setPlayer({
-        playerName: profile?.username || user.email?.split("@")[0] || "Adventurer",
+        playerName:
+          profile?.username ||
+          user.email?.split("@")[0] ||
+          "Adventurer",
         level,
         hp: currentHp,
         maxHp,
@@ -135,34 +144,57 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Load data when authentication changes.
   useEffect(() => {
-    void loadPlayer();
+    let active = true;
+
+    const refreshPlayer = () => {
+      if (active) {
+        void loadPlayer();
+      }
+    };
+
+    refreshPlayer();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      void loadPlayer();
+      // Run after the auth callback finishes.
+      Promise.resolve().then(() => {
+        if (active) {
+          void loadPlayer();
+        }
+      });
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [loadPlayer]);
 
+  // Complete or undo a quest.
   const toggleQuest = async (questId: number) => {
     const quest = quests.find((item) => item.id === questId);
 
     if (!quest) return;
 
     const {
-      data: { user },
+      data: { session },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getSession();
 
     if (authError) {
       console.error("Authentication error:", authError);
       return;
     }
 
-    if (!user) return;
+    const user = session?.user;
+
+    if (!user) {
+      console.error("Please log in first.");
+      return;
+    }
 
     const completing = !quest.completed;
 
@@ -187,13 +219,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const newMaxHp = 100 + (newLevel - 1) * HP_PER_LEVEL;
 
-    // IMPORTANT: Refill HP only when the player gains a level.
+    // Refill HP only when the player gains a level.
     const newHp =
       levelsGained > 0
         ? newMaxHp
         : Math.min(player.hp, newMaxHp);
 
-    // Save the quest completion first.
+    // Save quest completion.
     const { error: questError } = await supabase
       .from("tasks")
       .update({ completed: completing })
@@ -205,7 +237,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Save XP, HP, level, and gold to Supabase.
+    // Save player stats.
     const { error: statsError } = await supabase
       .from("player_stats")
       .update({
@@ -218,13 +250,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     if (statsError) {
       console.error("Failed to update player stats:", statsError);
-
-      // Reload to keep the screen consistent with the database.
       await loadPlayer();
       return;
     }
 
-    // Update the screen only after the database saves successfully.
+    // Update the screen.
     setQuests((previous) =>
       previous.map((item) =>
         item.id === questId
@@ -243,22 +273,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  // Add a new quest.
   const addQuest = async (title: string) => {
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle) return;
 
     const {
-      data: { user },
+      data: { session },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getSession();
 
     if (authError) {
       console.error("Authentication error:", authError);
       return;
     }
 
-    if (!user) return;
+    const user = session?.user;
+
+    if (!user) {
+      console.error("Please log in first.");
+      return;
+    }
 
     const xpReward = Math.floor(Math.random() * 41) + 10;
 

@@ -1,7 +1,8 @@
+
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import { GameProvider } from "./context/GameContext";
+import Navbar from "./components/Navbar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,30 +30,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-100`}
       >
-        {/* Navigation Bar */}
-        <nav className="bg-slate-900 text-white shadow-lg">
-          <div className="mx-auto flex max-w-6xl items-center justify-between p-4">
-            <h1 className="text-2xl font-bold">⚔️ QuestForge</h1>
-
-            <div className="flex gap-6">
-              <Link href="/" className="hover:text-yellow-400">
-                Home
-              </Link>
-
-              <Link href="/dashboard" className="hover:text-yellow-400">
-                Dashboard
-              </Link>
-
-              <Link href="/quests" className="hover:text-yellow-400">
-                Quests
-              </Link>
-              
-              <Link href="/profile" className="hover:text-yellow-400">
-                Profile
-              </Link>
-            </div>
-          </div>
-        </nav>
+        <Navbar />
 
         <main className="mx-auto max-w-6xl p-6">
           <GameProvider>{children}</GameProvider>

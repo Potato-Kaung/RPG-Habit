@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +14,24 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  // Check whether the user is already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session) {
+        router.replace("/dashboard");
+      } else {
+        setCheckingSession(false);
+      }
+    };
+
+    checkSession();
+  }, [router]);
 
   async function handleAuth(isSignup: boolean) {
     setLoading(true);
@@ -77,6 +95,10 @@ export default function LoginPage() {
     }
   }
 
+  if (checkingSession) {
+    return <p className="p-6">Checking login...</p>;
+  }
+
   return (
     <main className="mx-auto max-w-md space-y-4 p-6">
       <h1 className="text-2xl font-bold">QuestForge Login</h1>
@@ -100,6 +122,15 @@ export default function LoginPage() {
         onChange={(e) => setPassword(e.target.value)}
         required
       />
+
+      <div className="text-right">
+        <Link
+          href="/forgot-password"
+          className="text-sm text-blue-600 underline"
+        >
+          Forgot Password?
+        </Link>
+      </div>
 
       <button
         type="button"
