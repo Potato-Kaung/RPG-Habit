@@ -9,8 +9,3 @@ export const supabase = createClient(
   supabaseUrl,
   supabasePublishableKey
 );
-console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
-console.log(
-  "Supabase Key exists:",
-  !!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-);
