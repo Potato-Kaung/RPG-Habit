@@ -17,6 +17,8 @@ const GOLD_PER_LEVEL = 20;
 const DEFAULT_GOLD_REWARD = 5;
 const MAX_ACTIVE_QUESTS = 5;
 
+export type AdventureTheme = "fantasy";
+
 export interface Quest {
   id: number;
   title: string;
@@ -40,9 +42,11 @@ interface GameContextType {
   completedQuests: Quest[];
   player: PlayerStats;
   loading: boolean;
+  theme: AdventureTheme;
   toggleQuest: (questId: number) => Promise<void>;
   addQuest: (title: string) => Promise<void>;
   loadPlayer: () => Promise<void>;
+  updateTheme: (theme: AdventureTheme) => Promise<void>;
 }
 
 const defaultPlayer: PlayerStats = {
@@ -60,6 +64,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [player, setPlayer] = useState<PlayerStats>(defaultPlayer);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState<AdventureTheme>("fantasy");
 
   // Separate active quests from completed quest history.
   const activeQuests = quests.filter((quest) => !quest.completed);
@@ -82,6 +87,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (!user) {
         setPlayer(defaultPlayer);
         setQuests([]);
+        setTheme("fantasy");
         return;
       }
 
@@ -92,7 +98,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       ] = await Promise.all([
         supabase
           .from("profiles")
-          .select("username")
+          .select("username, theme")
           .eq("id", user.id)
           .maybeSingle(),
 
@@ -115,7 +121,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       const level = Math.max(1, stats.player_level ?? 1);
       const maxHp = 100 + (level - 1) * HP_PER_LEVEL;
-      const currentHp = Math.max(0, Math.min(stats.hp ?? 100, maxHp));
+      const currentHp = Math.max(
+        0,
+        Math.min(stats.hp ?? 100, maxHp)
+      );
 
       setPlayer({
         playerName:
@@ -128,6 +137,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         xp: stats.xp ?? 0,
         gold: stats.gold ?? 0,
       });
+
+      setTheme(profile?.theme === "fantasy" ? "fantasy" : "fantasy");
 
       setQuests(
         (tasks ?? []).map((task) => ({
@@ -173,6 +184,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [loadPlayer]);
 
+  // Update and save the player's adventure theme.
+  const updateTheme = async (newTheme: AdventureTheme) => {
+    const {
+      data: { session },
+      error: authError,
+    } = await supabase.auth.getSession();
+
+    if (authError) throw authError;
+
+    if (!session?.user) {
+      throw new Error("Please log in first.");
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ theme: newTheme })
+      .eq("id", session.user.id);
+
+    if (error) {
+      console.error("Failed to update theme:", error);
+      throw error;
+    }
+
+    setTheme(newTheme);
+  };
+
   // Complete a quest and award its rewards.
   const toggleQuest = async (questId: number) => {
     const quest = quests.find((item) => item.id === questId);
@@ -208,7 +245,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ? newMaxHp
         : Math.min(player.hp, newMaxHp);
 
-    // Save quest completion only once.
     const { data: updatedQuest, error: questError } = await supabase
       .from("tasks")
       .update({ completed: true })
@@ -228,7 +264,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Save player stats.
     const { error: statsError } = await supabase
       .from("player_stats")
       .update({
@@ -286,7 +321,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const user = session.user;
 
-    // Check the database too, so the limit isn't based only on UI state.
     const { count, error: countError } = await supabase
       .from("tasks")
       .select("id", { count: "exact", head: true })
@@ -343,9 +377,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         completedQuests,
         player,
         loading,
+        theme,
         toggleQuest,
         addQuest,
         loadPlayer,
+        updateTheme,
       }}
     >
       {children}

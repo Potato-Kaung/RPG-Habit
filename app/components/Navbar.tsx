@@ -70,6 +70,9 @@ export default function Navbar() {
               <Link href="/profile" className="hover:text-yellow-400">
                 Profile
               </Link>
+              <Link href="/settings" className="hover:text-yellow-400">
+  Settings
+</Link>
 
               <button
                 onClick={handleLogout}

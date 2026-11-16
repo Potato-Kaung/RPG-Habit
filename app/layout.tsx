@@ -30,11 +30,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-100`}
       >
-        <Navbar />
-
-        <main className="mx-auto max-w-6xl p-6">
-          <GameProvider>{children}</GameProvider>
-        </main>
+        <GameProvider>
+          <Navbar />
+          <main className="mx-auto max-w-6xl p-6">
+            {children}
+          </main>
+        </GameProvider>
       </body>
     </html>
   );
