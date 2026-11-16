@@ -15,6 +15,7 @@ const XP_PER_LEVEL = 100;
 const HP_PER_LEVEL = 20;
 const GOLD_PER_LEVEL = 20;
 const DEFAULT_GOLD_REWARD = 5;
+const MAX_ACTIVE_QUESTS = 5;
 
 export interface Quest {
   id: number;
@@ -35,6 +36,8 @@ export interface PlayerStats {
 
 interface GameContextType {
   quests: Quest[];
+  activeQuests: Quest[];
+  completedQuests: Quest[];
   player: PlayerStats;
   loading: boolean;
   toggleQuest: (questId: number) => Promise<void>;
@@ -58,6 +61,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [player, setPlayer] = useState<PlayerStats>(defaultPlayer);
   const [loading, setLoading] = useState(true);
 
+  // Separate active quests from completed quest history.
+  const activeQuests = quests.filter((quest) => !quest.completed);
+  const completedQuests = quests.filter((quest) => quest.completed);
+
   // Load the logged-in player's data.
   const loadPlayer = useCallback(async () => {
     setLoading(true);
@@ -72,14 +79,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       const user = session?.user;
 
-      // No logged-in user.
       if (!user) {
         setPlayer(defaultPlayer);
         setQuests([]);
         return;
       }
 
-      // Load profile, stats, and tasks.
       const [
         { data: profile, error: profileError },
         { data: stats, error: statsError },
@@ -110,11 +115,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       const level = Math.max(1, stats.player_level ?? 1);
       const maxHp = 100 + (level - 1) * HP_PER_LEVEL;
-
-      const currentHp = Math.max(
-        0,
-        Math.min(stats.hp ?? 100, maxHp)
-      );
+      const currentHp = Math.max(0, Math.min(stats.hp ?? 100, maxHp));
 
       setPlayer({
         playerName:
@@ -159,7 +160,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      // Run after the auth callback finishes.
       Promise.resolve().then(() => {
         if (active) {
           void loadPlayer();
@@ -173,67 +173,58 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [loadPlayer]);
 
-  // Complete or undo a quest.
+  // Complete a quest and award its rewards.
   const toggleQuest = async (questId: number) => {
     const quest = quests.find((item) => item.id === questId);
 
-    if (!quest) return;
+    if (!quest || quest.completed) return;
 
     const {
       data: { session },
       error: authError,
     } = await supabase.auth.getSession();
 
-    if (authError) {
-      console.error("Authentication error:", authError);
+    if (authError || !session?.user) {
+      console.error(authError ?? "Please log in first.");
       return;
     }
 
-    const user = session?.user;
+    const user = session.user;
 
-    if (!user) {
-      console.error("Please log in first.");
-      return;
-    }
-
-    const completing = !quest.completed;
-
-    let newXp = player.xp;
-    let newGold = player.gold;
+    let newXp = player.xp + quest.xpReward;
+    const newGold = player.gold + quest.goldReward;
     let newLevel = player.level;
     let levelsGained = 0;
 
-    if (completing) {
-      newXp += quest.xpReward;
-      newGold += quest.goldReward;
-
-      while (newXp >= XP_PER_LEVEL) {
-        newXp -= XP_PER_LEVEL;
-        newLevel += 1;
-        levelsGained += 1;
-      }
-    } else {
-      newXp = Math.max(0, newXp - quest.xpReward);
-      newGold = Math.max(0, newGold - quest.goldReward);
+    while (newXp >= XP_PER_LEVEL) {
+      newXp -= XP_PER_LEVEL;
+      newLevel += 1;
+      levelsGained += 1;
     }
 
     const newMaxHp = 100 + (newLevel - 1) * HP_PER_LEVEL;
-
-    // Refill HP only when the player gains a level.
     const newHp =
       levelsGained > 0
         ? newMaxHp
         : Math.min(player.hp, newMaxHp);
 
-    // Save quest completion.
-    const { error: questError } = await supabase
+    // Save quest completion only once.
+    const { data: updatedQuest, error: questError } = await supabase
       .from("tasks")
-      .update({ completed: completing })
+      .update({ completed: true })
       .eq("id", questId)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .eq("completed", false)
+      .select("id")
+      .maybeSingle();
 
     if (questError) {
       console.error("Failed to update quest:", questError);
+      return;
+    }
+
+    if (!updatedQuest) {
+      await loadPlayer();
       return;
     }
 
@@ -254,11 +245,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Update the screen.
     setQuests((previous) =>
       previous.map((item) =>
         item.id === questId
-          ? { ...item, completed: completing }
+          ? { ...item, completed: true }
           : item
       )
     );
@@ -273,26 +263,44 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  // Add a new quest.
+  // Add a new quest, provided an active slot is available.
   const addQuest = async (title: string) => {
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle) return;
+
+    if (activeQuests.length >= MAX_ACTIVE_QUESTS) {
+      console.warn("You can only have 5 active quests.");
+      return;
+    }
 
     const {
       data: { session },
       error: authError,
     } = await supabase.auth.getSession();
 
-    if (authError) {
-      console.error("Authentication error:", authError);
+    if (authError || !session?.user) {
+      console.error(authError ?? "Please log in first.");
       return;
     }
 
-    const user = session?.user;
+    const user = session.user;
 
-    if (!user) {
-      console.error("Please log in first.");
+    // Check the database too, so the limit isn't based only on UI state.
+    const { count, error: countError } = await supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("completed", false);
+
+    if (countError) {
+      console.error("Failed to check active quests:", countError);
+      return;
+    }
+
+    if ((count ?? 0) >= MAX_ACTIVE_QUESTS) {
+      await loadPlayer();
+      console.warn("You can only have 5 active quests.");
       return;
     }
 
@@ -331,6 +339,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     <GameContext.Provider
       value={{
         quests,
+        activeQuests,
+        completedQuests,
         player,
         loading,
         toggleQuest,
