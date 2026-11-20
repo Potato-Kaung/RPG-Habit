@@ -44,7 +44,11 @@ interface GameContextType {
   loading: boolean;
   theme: AdventureTheme;
   toggleQuest: (questId: number) => Promise<void>;
-  addQuest: (title: string) => Promise<void>;
+  addQuest: (
+  title: string,
+  xpReward?: number,
+  goldReward?: number
+) => Promise<void>;
   loadPlayer: () => Promise<void>;
   updateTheme: (theme: AdventureTheme) => Promise<void>;
 }
@@ -299,7 +303,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   // Add a new quest, provided an active slot is available.
-  const addQuest = async (title: string) => {
+  const addQuest = async (
+  title: string,
+  requestedXpReward?: number,
+  requestedGoldReward?: number
+) => {
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle) return;
@@ -338,7 +346,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const xpReward = Math.floor(Math.random() * 41) + 10;
+    const xpReward =
+  requestedXpReward ?? Math.floor(Math.random() * 41) + 10;
+
+const goldReward = requestedGoldReward ?? DEFAULT_GOLD_REWARD;
+
+if (
+  !Number.isInteger(xpReward) ||
+  xpReward < 10 ||
+  xpReward > 50 ||
+  !Number.isInteger(goldReward) ||
+  goldReward < 5 ||
+  goldReward > 20
+) {
+  console.error("Invalid quest rewards.");
+  return;
+}
 
     const { data, error } = await supabase
       .from("tasks")
@@ -346,7 +369,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         user_id: user.id,
         title: trimmedTitle,
         xp_reward: xpReward,
-        gold_reward: DEFAULT_GOLD_REWARD,
+        gold_reward: goldReward,
         completed: false,
       })
       .select("id, title, xp_reward, gold_reward, completed")
