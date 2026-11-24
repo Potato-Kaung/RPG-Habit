@@ -1,4 +1,6 @@
+
 "use client";
+
 import { supabase } from "@/lib/supabase";
 import { useState } from "react";
 import { useGame } from "../context/GameContext";
@@ -14,6 +16,11 @@ interface AIQuest {
   xpReward: number;
   goldReward: number;
   completionCondition: string;
+}
+
+interface APIResponse {
+  quest?: AIQuest;
+  error?: string;
 }
 
 export default function QuestsPage() {
@@ -35,10 +42,18 @@ export default function QuestsPage() {
   const [accepting, setAccepting] = useState(false);
   const [aiError, setAiError] = useState("");
 
+  const slotsRemaining = Math.max(
+    0,
+    MAX_ACTIVE_QUESTS - activeQuests.length
+  );
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!title.trim() || activeQuests.length >= MAX_ACTIVE_QUESTS) {
+    if (
+      !title.trim() ||
+      activeQuests.length >= MAX_ACTIVE_QUESTS
+    ) {
       return;
     }
 
@@ -47,7 +62,11 @@ export default function QuestsPage() {
   }
 
   async function generateAIQuest() {
-    if (activeQuests.length >= MAX_ACTIVE_QUESTS || generating) {
+    if (
+      generating ||
+      accepting ||
+      activeQuests.length >= MAX_ACTIVE_QUESTS
+    ) {
       return;
     }
 
@@ -56,14 +75,30 @@ export default function QuestsPage() {
     setSuggestion(null);
 
     try {
-      // The server only answers logged-in users, so send the login token.
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (!session) {
+      if (sessionError || !session) {
         throw new Error("Please log in first.");
       }
+
+      // Send the most recent completed quests.
+      const recentCompleted = completedQuests
+        .slice(-20)
+        .reverse()
+        .map((quest) => ({
+          title: quest.title,
+          xpReward: quest.xpReward,
+          goldReward: quest.goldReward,
+        }));
+
+      const currentActive = activeQuests.map((quest) => ({
+        title: quest.title,
+        xpReward: quest.xpReward,
+        goldReward: quest.goldReward,
+      }));
 
       const response = await fetch("/api/quests/generate", {
         method: "POST",
@@ -74,43 +109,65 @@ export default function QuestsPage() {
         body: JSON.stringify({
           playerLevel: player.level,
           theme,
-          activeQuests: activeQuests.map((quest) => ({
-            title: quest.title,
-          })),
-          completedQuests: completedQuests
-            .slice(-10)
-            .map((quest) => ({
-              title: quest.title,
-            })),
+          activeQuests: currentActive,
+          completedQuests: recentCompleted,
           availableMinutes: 30,
         }),
       });
 
       const responseText = await response.text();
 
-      let data;
+      let data: APIResponse;
 
       try {
-        data = JSON.parse(responseText);
+        data = JSON.parse(responseText) as APIResponse;
       } catch {
-        console.error("API returned non-JSON response:", responseText);
+        console.error("Invalid API response:", responseText);
 
         throw new Error(
-          `API returned HTML/text instead of JSON. Status: ${response.status}`
+          `The server returned an invalid response (${response.status}).`
         );
       }
 
       if (!response.ok) {
-        throw new Error(data.error || "Could not generate a quest.");
+        throw new Error(
+          data.error || `Quest generation failed (${response.status}).`
+        );
       }
 
-      if (!data.quest) {
-        throw new Error("The AI did not return a quest.");
+      if (!data.quest || !data.quest.title) {
+        throw new Error("The AI did not return a valid quest.");
       }
 
-      setSuggestion(data.quest);
+      const quest = data.quest;
+
+      // Basic response validation.
+      if (
+        !quest.description ||
+        !quest.completionCondition ||
+        !["Easy", "Medium", "Hard"].includes(quest.difficulty)
+      ) {
+        throw new Error(
+          "The AI generated an incomplete quest. Please try again."
+        );
+      }
+
+      if (
+        currentActive.some(
+          (q) =>
+            q.title.toLowerCase().trim() ===
+            quest.title.toLowerCase().trim()
+        )
+      ) {
+        throw new Error(
+          "The AI generated an existing active quest. Please try again."
+        );
+      }
+
+      setSuggestion(quest);
     } catch (error) {
       console.error("AI quest generation error:", error);
+
       setAiError(
         error instanceof Error
           ? error.message
@@ -122,7 +179,11 @@ export default function QuestsPage() {
   }
 
   async function acceptAIQuest() {
-    if (!suggestion || accepting || activeQuests.length >= MAX_ACTIVE_QUESTS) {
+    if (
+      !suggestion ||
+      accepting ||
+      activeQuests.length >= MAX_ACTIVE_QUESTS
+    ) {
       return;
     }
 
@@ -146,18 +207,23 @@ export default function QuestsPage() {
   }
 
   function rejectAIQuest() {
+    if (accepting) return;
+
     setSuggestion(null);
     setAiError("");
   }
 
   if (loading) {
-    return <div className="p-6 text-gray-500">Loading your quests...</div>;
+    return (
+      <div className="p-6 text-gray-500">
+        Loading your quests...
+      </div>
+    );
   }
-
-  const slotsRemaining = MAX_ACTIVE_QUESTS - activeQuests.length;
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
       <div className="rounded-xl bg-slate-900 p-6 text-white shadow-lg">
         <h1 className="text-4xl font-bold">📜 Quests</h1>
@@ -169,14 +235,20 @@ export default function QuestsPage() {
       {/* Player XP */}
       <div className="rounded-xl bg-white p-6 shadow">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-lg font-bold">Level {player.level}</span>
-          <span className="text-gray-500">{player.xp}/100 XP</span>
+          <span className="text-lg font-bold">
+            Level {player.level}
+          </span>
+          <span className="text-gray-500">
+            {player.xp}/100 XP
+          </span>
         </div>
 
         <div className="h-4 w-full overflow-hidden rounded-full bg-gray-300">
           <div
             className="h-4 rounded-full bg-blue-500 transition-all duration-500"
-            style={{ width: `${player.xp}%` }}
+            style={{
+              width: `${Math.min(100, Math.max(0, player.xp))}%`,
+            }}
           />
         </div>
       </div>
@@ -198,7 +270,9 @@ export default function QuestsPage() {
             <div
               key={index}
               className={`h-2 flex-1 rounded-full ${
-                index < activeQuests.length ? "bg-blue-500" : "bg-gray-200"
+                index < activeQuests.length
+                  ? "bg-blue-500"
+                  : "bg-gray-200"
               }`}
             />
           ))}
@@ -213,6 +287,7 @@ export default function QuestsPage() {
 
       {/* AI Quest Master */}
       <div className="overflow-hidden rounded-xl border border-purple-200 bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 text-white shadow-xl">
+
         <div className="border-b border-white/10 p-6">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/20 text-3xl">
@@ -220,7 +295,9 @@ export default function QuestsPage() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold">AI Quest Master</h2>
+              <h2 className="text-2xl font-bold">
+                AI Quest Master
+              </h2>
               <p className="text-sm text-purple-200">
                 Your personal adventure guide
               </p>
@@ -228,17 +305,22 @@ export default function QuestsPage() {
           </div>
 
           <p className="mt-4 text-sm leading-6 text-slate-300">
-            Let the Quest Master create a personalized mission based on your
-            level, current adventures, and completed quests.
+            Your Quest Master analyzes your completed adventures,
+            current missions, and player level to suggest your next challenge.
           </p>
         </div>
 
         <div className="p-6">
+
           {!suggestion && (
             <button
               type="button"
               onClick={generateAIQuest}
-              disabled={generating || slotsRemaining === 0}
+              disabled={
+                generating ||
+                accepting ||
+                slotsRemaining === 0
+              }
               className="w-full rounded-lg bg-purple-600 px-5 py-3 font-bold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {generating
@@ -249,7 +331,7 @@ export default function QuestsPage() {
 
           {generating && (
             <div className="mt-4 animate-pulse rounded-lg bg-white/5 p-5 text-center text-purple-200">
-              The wizard is preparing your next adventure...
+              The wizard is analyzing your previous adventures...
             </div>
           )}
 
@@ -261,6 +343,7 @@ export default function QuestsPage() {
 
           {suggestion && (
             <div className="mt-2 rounded-xl border border-purple-300/30 bg-white/10 p-5">
+
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <span className="rounded-full bg-purple-500/20 px-3 py-1 text-xs font-bold text-purple-200">
                   ✨ AI GENERATED QUEST
@@ -301,6 +384,7 @@ export default function QuestsPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-purple-200">
                   Completion Condition
                 </p>
+
                 <p className="mt-2 text-sm text-slate-200">
                   {suggestion.completionCondition}
                 </p>
@@ -310,7 +394,10 @@ export default function QuestsPage() {
                 <button
                   type="button"
                   onClick={acceptAIQuest}
-                  disabled={accepting}
+                  disabled={
+                    accepting ||
+                    activeQuests.length >= MAX_ACTIVE_QUESTS
+                  }
                   className="flex-1 rounded-lg bg-green-600 px-4 py-3 font-bold text-white transition hover:bg-green-500 disabled:opacity-50"
                 >
                   {accepting ? "Accepting..." : "✓ Accept Quest"}
@@ -391,6 +478,7 @@ export default function QuestsPage() {
 
       {/* Quest History */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+
         <button
           type="button"
           onClick={() => setShowHistory(!showHistory)}
@@ -401,6 +489,7 @@ export default function QuestsPage() {
             <h2 className="text-xl font-bold text-slate-900 transition-colors group-hover:text-amber-600">
               🏆 Quest History
             </h2>
+
             <p className="mt-1 text-sm text-gray-500">
               {completedQuests.length} quests completed
             </p>
@@ -408,7 +497,9 @@ export default function QuestsPage() {
 
           <span
             className={`flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all duration-300 ${
-              showHistory ? "rotate-180 bg-amber-100 text-amber-600" : ""
+              showHistory
+                ? "rotate-180 bg-amber-100 text-amber-600"
+                : ""
             }`}
           >
             ▼
@@ -417,7 +508,9 @@ export default function QuestsPage() {
 
         <div
           className={`grid transition-[grid-template-rows] duration-500 ease-in-out ${
-            showHistory ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            showHistory
+              ? "grid-rows-[1fr]"
+              : "grid-rows-[0fr]"
           }`}
         >
           <div className="min-h-0 overflow-hidden">
@@ -434,7 +527,7 @@ export default function QuestsPage() {
                 </p>
               ) : (
                 <ul>
-                  {completedQuests.map((quest, index) => (
+                  {[...completedQuests].reverse().map((quest, index) => (
                     <li
                       key={quest.id}
                       style={{

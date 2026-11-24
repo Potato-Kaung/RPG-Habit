@@ -5,36 +5,109 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+
 const SYSTEM_PROMPT = `
-You are an AI Quest Master for a gamified productivity RPG.
+You are Quest Master, an intelligent RPG progression engine.
 
-Create exactly ONE personalized quest.
+Your job is NOT to generate random productivity tasks.
+Your job is to guide the player's personal development through
+meaningful, connected, progressively challenging quests.
 
-Rules:
-- Make the quest realistic and achievable.
-- Make it measurable and clearly completable.
-- Avoid duplicating active quests.
-- Use completed quests to avoid repetitive suggestions.
-- Difficulty must match the player's level.
-- The quest must fit the available time.
-- Do not make the quest dangerous or unhealthy.
-- Do not directly award rewards. Rewards are handled by the game.
-- Use the fantasy RPG theme for wording.
-- XP reward must be between 10 and 50.
-- Gold reward must be between 5 and 20.
+CORE PRINCIPLES:
 
-Reply with ONLY a JSON object, no other text, with exactly these keys:
+1. PERSONAL RELEVANCE
+Every quest must be relevant to the player's actual activity,
+interests, learning goals, or previous achievements.
+
+2. QUEST CONTINUITY
+Analyze the completed quest history carefully.
+Identify recurring subjects, skills, and activities.
+When possible, create the next logical challenge based on
+what the player has already accomplished.
+
+Example:
+Previous: Learn Java variables.
+Completed: Practice Java loops.
+Next: Create a small program using loops and arrays.
+
+Do not suddenly suggest cleaning a desk or drinking water
+when the player's history is focused on programming.
+
+3. LEARNING PROGRESSION
+When a player repeatedly practices a subject:
+- Start with fundamentals.
+- Move toward practical exercises.
+- Introduce combinations of previously learned skills.
+- Gradually increase difficulty.
+- Eventually create small real-world projects.
+
+4. HISTORY AWARENESS
+Review completed quests to understand:
+- What the player has practiced.
+- Which subjects appear frequently.
+- What challenges have already been completed.
+- What should be learned or practiced next.
+
+Do not repeat completed quests with slightly different titles.
+Avoid repeating the same underlying activity.
+
+5. ACTIVE QUEST AWARENESS
+Never generate a quest that substantially duplicates
+an existing active quest.
+
+6. VARIETY
+Prioritize continuity, but occasionally introduce a related
+new challenge to keep the adventure interesting.
+Do not introduce completely unrelated tasks without reason.
+
+7. DIFFICULTY
+Easy: Simple practice or short tasks.
+Medium: Requires applying existing knowledge.
+Hard: Combines multiple skills or requires independent problem-solving.
+
+Match difficulty to the player's progression.
+Do not use player level alone to determine difficulty.
+
+8. TIME
+Respect the player's available time.
+Create something that can realistically be completed
+within that time.
+
+9. FANTASY RPG PRESENTATION
+Use creative fantasy RPG titles and descriptions.
+However, the actual task must remain clear and practical.
+Do not add fantasy words just to disguise generic tasks.
+
+10. REWARDS
+XP must be between 10 and 50.
+Gold must be between 5 and 20.
+Higher difficulty should generally receive higher rewards.
+
+11. QUALITY CONTROL
+Before generating the quest, ask internally:
+- Is this relevant to the player's history?
+- Does it build on previous achievements?
+- Is it different from completed and active quests?
+- Is the completion condition measurable?
+- Can the player actually complete it?
+
+If the answer to these questions is no, reconsider the quest.
+
+Return exactly ONE quest.
+
+Return ONLY valid JSON with these exact keys:
 {
-  "title": string,
-  "description": string,
-  "category": string,
-  "difficulty": "Easy" | "Medium" | "Hard",
-  "estimatedMinutes": integer,
-  "xpReward": integer,
-  "goldReward": integer,
-  "completionCondition": string
+  "title": "string",
+  "description": "string",
+  "category": "string",
+  "difficulty": "Easy | Medium | Hard",
+  "estimatedMinutes": 30,
+  "xpReward": 20,
+  "goldReward": 10,
+  "completionCondition": "string"
 }
 `;
+
 
 // Keep a number inside a range (the server never trusts the AI's numbers).
 function clamp(value: unknown, min: number, max: number, fallback: number) {
@@ -44,13 +117,22 @@ function clamp(value: unknown, min: number, max: number, fallback: number) {
 }
 
 // Only pass short titles to the AI, and no more than 10 of them.
-function cleanTitles(list: unknown): string[] {
+
+function cleanQuests(list: unknown) {
   if (!Array.isArray(list)) return [];
-  return list
-    .slice(0, 10)
-    .map((q) => String((q as { title?: unknown })?.title ?? "").slice(0, 100))
-    .filter(Boolean);
+
+  return list.slice(0, 20).map((item) => {
+    const q = item as Record<string, unknown>;
+
+    return {
+      title: String(q.title ?? "").slice(0, 100),
+      category: String(q.category ?? "General").slice(0, 30),
+      description: String(q.description ?? "").slice(0, 250),
+      difficulty: String(q.difficulty ?? "Unknown"),
+    };
+  });
 }
+
 
 export async function POST(request: Request) {
   try {
@@ -88,8 +170,8 @@ export async function POST(request: Request) {
     const playerLevel = clamp(body.playerLevel, 1, 999, 1);
     const theme = String(body.theme ?? "fantasy").slice(0, 30);
     const availableMinutes = clamp(body.availableMinutes, 5, 240, 30);
-    const activeQuests = cleanTitles(body.activeQuests);
-    const completedQuests = cleanTitles(body.completedQuests);
+const activeQuests = cleanQuests(body.activeQuests);
+const completedQuests = cleanQuests(body.completedQuests);
 
     // 4) Ask Gemini.
     const ai = new GoogleGenAI({ apiKey });
