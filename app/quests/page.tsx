@@ -1,6 +1,5 @@
-
 "use client";
-
+import { supabase } from "@/lib/supabase";
 import { useState } from "react";
 import { useGame } from "../context/GameContext";
 
@@ -57,10 +56,20 @@ export default function QuestsPage() {
     setSuggestion(null);
 
     try {
+      // The server only answers logged-in users, so send the login token.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("Please log in first.");
+      }
+
       const response = await fetch("/api/quests/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           playerLevel: player.level,
@@ -79,17 +88,17 @@ export default function QuestsPage() {
 
       const responseText = await response.text();
 
-let data;
+      let data;
 
-try {
-  data = JSON.parse(responseText);
-} catch {
-  console.error("API returned non-JSON response:", responseText);
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        console.error("API returned non-JSON response:", responseText);
 
-  throw new Error(
-    `API returned HTML/text instead of JSON. Status: ${response.status}`
-  );
-}
+        throw new Error(
+          `API returned HTML/text instead of JSON. Status: ${response.status}`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "Could not generate a quest.");
