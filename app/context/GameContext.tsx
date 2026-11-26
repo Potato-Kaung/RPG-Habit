@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -10,10 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import { supabase } from "@/lib/supabase";
+import { SHOP_ITEMS, type EquipmentSlot } from "@/lib/shopItems";
 
 const XP_PER_LEVEL = 100;
 const HP_PER_LEVEL = 20;
-const GOLD_PER_LEVEL = 20;
 const DEFAULT_GOLD_REWARD = 5;
 const MAX_ACTIVE_QUESTS = 5;
 
@@ -36,6 +35,8 @@ export interface PlayerStats {
   gold: number;
 }
 
+export type EquippedGear = Record<EquipmentSlot, string>;
+
 interface GameContextType {
   quests: Quest[];
   activeQuests: Quest[];
@@ -43,14 +44,18 @@ interface GameContextType {
   player: PlayerStats;
   loading: boolean;
   theme: AdventureTheme;
+  ownedItems: string[];
+  equipped: EquippedGear;
   toggleQuest: (questId: number) => Promise<void>;
   addQuest: (
-  title: string,
-  xpReward?: number,
-  goldReward?: number
-) => Promise<void>;
+    title: string,
+    xpReward?: number,
+    goldReward?: number
+  ) => Promise<void>;
   loadPlayer: () => Promise<void>;
   updateTheme: (theme: AdventureTheme) => Promise<void>;
+  buyItem: (itemId: string) => Promise<{ ok: boolean; message: string }>;
+  equipItem: (itemId: string) => void;
 }
 
 const defaultPlayer: PlayerStats = {
@@ -62,6 +67,13 @@ const defaultPlayer: PlayerStats = {
   gold: 0,
 };
 
+const defaultEquipped: EquippedGear = {
+  weapon: "Wooden Sword",
+  shield: "Leather Armor",
+  accessory: "Lucky Ring",
+  boots: "Traveler Boots",
+};
+
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export function GameProvider({ children }: { children: ReactNode }) {
@@ -69,10 +81,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [player, setPlayer] = useState<PlayerStats>(defaultPlayer);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<AdventureTheme>("fantasy");
+  const [ownedItems, setOwnedItems] = useState<string[]>([]);
+  const [equipped, setEquipped] = useState<EquippedGear>(defaultEquipped);
 
   // Separate active quests from completed quest history.
   const activeQuests = quests.filter((quest) => !quest.completed);
   const completedQuests = quests.filter((quest) => quest.completed);
+
+  // Restore purchased inventory and equipped gear from localStorage.
+  useEffect(() => {
+    try {
+      const savedOwned = localStorage.getItem("rpg_habit_owned_items");
+      const savedEquipped = localStorage.getItem("rpg_habit_equipped");
+      if (savedOwned) setOwnedItems(JSON.parse(savedOwned));
+      if (savedEquipped) setEquipped(JSON.parse(savedEquipped));
+    } catch (error) {
+      console.error("Failed to load local inventory:", error);
+    }
+  }, []);
 
   // Load the logged-in player's data.
   const loadPlayer = useCallback(async () => {
@@ -125,16 +151,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       const level = Math.max(1, stats.player_level ?? 1);
       const maxHp = 100 + (level - 1) * HP_PER_LEVEL;
-      const currentHp = Math.max(
-        0,
-        Math.min(stats.hp ?? 100, maxHp)
-      );
+      const currentHp = Math.max(0, Math.min(stats.hp ?? 100, maxHp));
 
       setPlayer({
         playerName:
-          profile?.username ||
-          user.email?.split("@")[0] ||
-          "Adventurer",
+          profile?.username || user.email?.split("@")[0] || "Adventurer",
         level,
         hp: currentHp,
         maxHp,
@@ -160,7 +181,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Load data when authentication changes.
+  // Reload data when authentication state changes.
   useEffect(() => {
     let active = true;
 
@@ -245,9 +266,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const newMaxHp = 100 + (newLevel - 1) * HP_PER_LEVEL;
     const newHp =
-      levelsGained > 0
-        ? newMaxHp
-        : Math.min(player.hp, newMaxHp);
+      levelsGained > 0 ? newMaxHp : Math.min(player.hp, newMaxHp);
 
     const { data: updatedQuest, error: questError } = await supabase
       .from("tasks")
@@ -286,9 +305,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     setQuests((previous) =>
       previous.map((item) =>
-        item.id === questId
-          ? { ...item, completed: true }
-          : item
+        item.id === questId ? { ...item, completed: true } : item
       )
     );
 
@@ -304,10 +321,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Add a new quest, provided an active slot is available.
   const addQuest = async (
-  title: string,
-  requestedXpReward?: number,
-  requestedGoldReward?: number
-) => {
+    title: string,
+    requestedXpReward?: number,
+    requestedGoldReward?: number
+  ) => {
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle) return;
@@ -347,21 +364,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     const xpReward =
-  requestedXpReward ?? Math.floor(Math.random() * 41) + 10;
+      requestedXpReward ?? Math.floor(Math.random() * 41) + 10;
+    const goldReward = requestedGoldReward ?? DEFAULT_GOLD_REWARD;
 
-const goldReward = requestedGoldReward ?? DEFAULT_GOLD_REWARD;
-
-if (
-  !Number.isInteger(xpReward) ||
-  xpReward < 10 ||
-  xpReward > 50 ||
-  !Number.isInteger(goldReward) ||
-  goldReward < 5 ||
-  goldReward > 20
-) {
-  console.error("Invalid quest rewards.");
-  return;
-}
+    if (
+      !Number.isInteger(xpReward) ||
+      xpReward < 10 ||
+      xpReward > 50 ||
+      !Number.isInteger(goldReward) ||
+      goldReward < 5 ||
+      goldReward > 20
+    ) {
+      console.error("Invalid quest rewards.");
+      return;
+    }
 
     const { data, error } = await supabase
       .from("tasks")
@@ -392,6 +408,75 @@ if (
     ]);
   };
 
+  // Equip an owned item into its corresponding slot.
+  const equipItem = (itemId: string) => {
+    const item = SHOP_ITEMS.find((i) => i.id === itemId);
+    if (!item) return;
+
+    setEquipped((prev) => {
+      const updated = { ...prev, [item.slot]: item.name };
+      localStorage.setItem("rpg_habit_equipped", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Purchase an item using Gold and update Supabase player_stats.
+  const buyItem = async (
+    itemId: string
+  ): Promise<{ ok: boolean; message: string }> => {
+    const item = SHOP_ITEMS.find((i) => i.id === itemId);
+    if (!item) {
+      return { ok: false, message: "Item not found." };
+    }
+
+    if (ownedItems.includes(item.id)) {
+      equipItem(item.id);
+      return { ok: true, message: `Equipped ${item.name}!` };
+    }
+
+    if (player.gold < item.price) {
+      return {
+        ok: false,
+        message: `Not enough Gold! Requires ${item.price} G, you currently have ${player.gold} G.`,
+      };
+    }
+
+    const {
+      data: { session },
+      error: authError,
+    } = await supabase.auth.getSession();
+
+    if (authError || !session?.user) {
+      return { ok: false, message: "Please log in first." };
+    }
+
+    const newGold = player.gold - item.price;
+
+    const { error: statsError } = await supabase
+      .from("player_stats")
+      .update({ gold: newGold })
+      .eq("user_id", session.user.id);
+
+    if (statsError) {
+      console.error("Failed to purchase item:", statsError);
+      return { ok: false, message: "Purchase failed. Please try again later." };
+    }
+
+    setPlayer((prev) => ({ ...prev, gold: newGold }));
+
+    const nextOwned = [...ownedItems, item.id];
+    setOwnedItems(nextOwned);
+    localStorage.setItem("rpg_habit_owned_items", JSON.stringify(nextOwned));
+
+    // Automatically equip the item upon purchase.
+    equipItem(item.id);
+
+    return {
+      ok: true,
+      message: `Purchased and equipped ${item.name} for ${item.price} G!`,
+    };
+  };
+
   return (
     <GameContext.Provider
       value={{
@@ -401,10 +486,14 @@ if (
         player,
         loading,
         theme,
+        ownedItems,
+        equipped,
         toggleQuest,
         addQuest,
         loadPlayer,
         updateTheme,
+        buyItem,
+        equipItem,
       }}
     >
       {children}

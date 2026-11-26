@@ -16,7 +16,7 @@ import Image from "next/image";
 import { useGame } from "../context/GameContext";
 
 export default function ProfilePage() {
-  const { player } = useGame();
+  const { player, equipped } = useGame();
 
   // Mana isn't part of the core game system yet — kept as a static
   // placeholder until that feature actually exists.
@@ -96,21 +96,21 @@ export default function ProfilePage() {
           <h2 className="mb-5 text-2xl font-bold">Equipment</h2>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4">
-              <Sword />
-              Wooden Sword
+            <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4 font-semibold">
+              <Sword className="text-red-500" />
+              {equipped.weapon}
             </div>
-            <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4">
-              <Shield />
-              Leather Armor
+            <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4 font-semibold">
+              <Shield className="text-blue-500" />
+              {equipped.shield}
             </div>
-            <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4">
-              <Gem />
-              Lucky Ring
+            <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4 font-semibold">
+              <Gem className="text-purple-500" />
+              {equipped.accessory}
             </div>
-            <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4">
-              <Footprints />
-              Traveler Boots
+            <div className="flex items-center gap-3 rounded-lg bg-gray-100 p-4 font-semibold">
+              <Footprints className="text-emerald-500" />
+              {equipped.boots}
             </div>
           </div>
         </div>

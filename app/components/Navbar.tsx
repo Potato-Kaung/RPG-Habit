@@ -1,13 +1,15 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Coins } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useGame } from "../context/GameContext";
 
 export default function Navbar() {
   const router = useRouter();
+  const { player } = useGame();
   const [loggedIn, setLoggedIn] = useState(false);
   const [checking, setChecking] = useState(true);
 
@@ -67,12 +69,22 @@ export default function Navbar() {
                 Quests
               </Link>
 
+              <Link href="/shop" className="hover:text-yellow-400">
+                Shop
+              </Link>
+
               <Link href="/profile" className="hover:text-yellow-400">
                 Profile
               </Link>
+
               <Link href="/settings" className="hover:text-yellow-400">
-  Settings
-</Link>
+                Settings
+              </Link>
+
+              <div className="flex items-center gap-1.5 rounded-full bg-slate-800 px-3 py-1 text-sm font-bold text-yellow-400">
+                <Coins className="h-4 w-4" />
+                <span>{player.gold} G</span>
+              </div>
 
               <button
                 onClick={handleLogout}
